@@ -8,8 +8,9 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Store the last received IPN data
+// Store the IPN and registration data
 let lastReceivedIPN = null;
+let ipnRegistration = null;
 
 // Middleware
 app.use(express.json());
@@ -21,8 +22,37 @@ app.get('/', (req, res) => {
     status: 'healthy', 
     message: 'PesaPal IPN server is running',
     ipn_url: `${req.protocol}://${req.get('host')}/ipn`,
+    ipn_registration: ipnRegistration,
     last_ipn: lastReceivedIPN
   });
+});
+
+// Register IPN URL endpoint
+app.post('/register-ipn', async (req, res) => {
+  try {
+    const { ipn_id, url } = req.body;
+    
+    // Store the IPN registration
+    ipnRegistration = {
+      registered_at: new Date().toISOString(),
+      ipn_id,
+      url
+    };
+
+    console.log('IPN Registration:', ipnRegistration);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'IPN URL registered successfully',
+      data: ipnRegistration
+    });
+  } catch (error) {
+    console.error('IPN Registration Error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to register IPN URL'
+    });
+  }
 });
 
 // Display IPN information
@@ -30,11 +60,18 @@ app.get('/ipn', (req, res) => {
   res.json({
     status: 'ready',
     message: 'PesaPal IPN endpoint',
+    ipn_registration: ipnRegistration,
     last_received_ipn: lastReceivedIPN,
     setup_instructions: {
-      url: `${req.protocol}://${req.get('host')}/ipn`,
-      method: 'POST',
-      expected_parameters: [
+      registration_url: `${req.protocol}://${req.get('host')}/register-ipn`,
+      ipn_url: `${req.protocol}://${req.get('host')}/ipn`,
+      registration_method: 'POST',
+      registration_parameters: {
+        ipn_id: 'string - Your PesaPal IPN ID',
+        url: 'string - Your IPN URL'
+      },
+      ipn_method: 'POST',
+      ipn_parameters: [
         'orderTrackingId',
         'orderMerchantReference',
         'orderNotificationType',
