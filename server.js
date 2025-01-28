@@ -8,13 +8,46 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Store the last received IPN data
+let lastReceivedIPN = null;
+
 // Middleware
 app.use(express.json());
 app.use(cors());
 
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.json({ status: 'healthy', message: 'PesaPal IPN server is running' });
+  res.json({ 
+    status: 'healthy', 
+    message: 'PesaPal IPN server is running',
+    ipn_url: `${req.protocol}://${req.get('host')}/ipn`,
+    last_ipn: lastReceivedIPN
+  });
+});
+
+// Display IPN information
+app.get('/ipn', (req, res) => {
+  res.json({
+    status: 'ready',
+    message: 'PesaPal IPN endpoint',
+    last_received_ipn: lastReceivedIPN,
+    setup_instructions: {
+      url: `${req.protocol}://${req.get('host')}/ipn`,
+      method: 'POST',
+      expected_parameters: [
+        'orderTrackingId',
+        'orderMerchantReference',
+        'orderNotificationType',
+        'orderAmount',
+        'orderCurrency',
+        'paymentStatus',
+        'paymentStatusDescription',
+        'paymentMethod',
+        'paymentAccount',
+        'createdDate'
+      ]
+    }
+  });
 });
 
 // IPN endpoint
@@ -33,19 +66,25 @@ app.post('/ipn', async (req, res) => {
       createdDate,
     } = req.body;
 
+    // Store the received IPN data
+    lastReceivedIPN = {
+      received_at: new Date().toISOString(),
+      data: {
+        orderTrackingId,
+        orderMerchantReference,
+        orderNotificationType,
+        orderAmount,
+        orderCurrency,
+        paymentStatus,
+        paymentStatusDescription,
+        paymentMethod,
+        paymentAccount,
+        createdDate,
+      }
+    };
+
     // Log the payment notification
-    console.log('Payment Notification Received:', {
-      orderTrackingId,
-      orderMerchantReference,
-      orderNotificationType,
-      orderAmount,
-      orderCurrency,
-      paymentStatus,
-      paymentStatusDescription,
-      paymentMethod,
-      paymentAccount,
-      createdDate,
-    });
+    console.log('Payment Notification Received:', lastReceivedIPN);
 
     // TODO: Add your custom logic here
     // For example:
